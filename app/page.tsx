@@ -65,6 +65,7 @@ export default function Home() {
   const [importUrl, setImportUrl] = useState("");
   const [importing, setImporting] = useState(false);
   const [importError, setImportError] = useState("");
+  const [updatingId, setUpdatingId] = useState<number | null>(null);
 
   async function loadApplications() {
     try {
@@ -174,6 +175,23 @@ export default function Home() {
     } catch (cause) { setError(cause instanceof Error ? cause.message : "Lamaran belum berhasil dihapus."); }
   }
 
+  async function updateStatus(item: Application, status: Status) {
+    if (item.id < 0 || item.status === status) return;
+    setUpdatingId(item.id); setError("");
+    try {
+      const { id: _, createdAt: __, updatedAt: ___, ...payload } = item;
+      const response = await fetch(`/api/applications/${item.id}`, {
+        method: "PATCH", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ ...payload, status }),
+      });
+      const data = await response.json() as { application: Application; error?: string };
+      if (!response.ok) throw new Error(data.error || "Status belum berhasil diperbarui.");
+      setItems((current) => current.map((currentItem) => currentItem.id === item.id ? data.application : currentItem));
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : "Status belum berhasil diperbarui.");
+    } finally { setUpdatingId(null); }
+  }
+
   return (
     <main className="min-h-screen pb-16">
       <section className="hero-shell">
@@ -216,6 +234,7 @@ export default function Home() {
                   <div className="application-title-row"><div><h3>{item.role}</h3><p className="company"><Building2 /> {item.company}</p></div><span className={`status-pill ${statusStyle[item.status]}`}>{item.status}</span></div>
                   <div className="meta-row"><span><MapPin /> {item.location || "Lokasi belum diisi"}</span><span>{item.workMode}</span>{item.appliedDate && <span>Dilamar {dateLabel(item.appliedDate)}</span>}</div>
                   <div className="next-step"><Clock3 /><div><span>Langkah berikutnya</span><strong>{dateLabel(item.nextStepDate)}</strong></div>{isDueSoon(item.nextStepDate) && <em>Segera</em>}</div>
+                  <div className="quick-status"><span>Ubah status</span><NativeSelect aria-label={`Ubah status ${item.role} di ${item.company}`} size="sm" value={item.status} disabled={item.id < 0 || updatingId === item.id} onChange={(event) => void updateStatus(item, event.target.value as Status)}>{statuses.map((status) => <NativeSelectOption key={status} value={status}>{status}</NativeSelectOption>)}</NativeSelect>{updatingId === item.id && <LoaderCircle className="spin" aria-label="Memperbarui status" />}</div>
                 </div>
                 <div className="card-actions">
                   {item.jobUrl && <Button variant="ghost" size="icon" asChild><a href={item.jobUrl} target="_blank" rel="noreferrer" aria-label="Buka lowongan"><ArrowUpRight /></a></Button>}
