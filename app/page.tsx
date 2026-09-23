@@ -1,7 +1,7 @@
 "use client";
 
 import { FormEvent, useEffect, useMemo, useState } from "react";
-import { ArrowUpRight, BriefcaseBusiness, Building2, CalendarDays, Check, ChevronRight, CircleAlert, Clock3, MapPin, MoreHorizontal, Pencil, Plus, Search, Sparkles, Trash2 } from "lucide-react";
+import { ArrowUpRight, BriefcaseBusiness, Building2, CalendarDays, Check, ChevronRight, CircleAlert, Clock3, Link2, LoaderCircle, MapPin, MoreHorizontal, Pencil, Plus, Search, Sparkles, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
@@ -62,6 +62,9 @@ export default function Home() {
   const [deleteTarget, setDeleteTarget] = useState<Application | null>(null);
   const [form, setForm] = useState<FormState>(emptyForm);
   const [saving, setSaving] = useState(false);
+  const [importUrl, setImportUrl] = useState("");
+  const [importing, setImporting] = useState(false);
+  const [importError, setImportError] = useState("");
 
   async function loadApplications() {
     try {
@@ -131,6 +134,25 @@ export default function Home() {
     setDialogOpen(true);
   }
 
+  async function importJob(event: FormEvent) {
+    event.preventDefault();
+    if (!importUrl.trim()) return;
+    setImporting(true); setImportError("");
+    try {
+      const response = await fetch("/api/import-job", {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ url: importUrl.trim() }),
+      });
+      const data = await response.json() as { job?: Partial<FormState>; error?: string };
+      if (!response.ok || !data.job) throw new Error(data.error || "Data lowongan belum bisa dibaca.");
+      setEditing(null);
+      setForm({ ...emptyForm, status: "Tersimpan", appliedDate: "", ...data.job, jobUrl: importUrl.trim() });
+      setDialogOpen(true);
+    } catch (cause) {
+      setImportError(cause instanceof Error ? cause.message : "Data lowongan belum bisa dibaca.");
+    } finally { setImporting(false); }
+  }
+
   async function submit(event: FormEvent) {
     event.preventDefault(); setSaving(true); setError("");
     try {
@@ -160,7 +182,15 @@ export default function Home() {
           <Button onClick={openCreate} className="add-button h-11 rounded-full px-5"><Plus aria-hidden="true" /> Tambah lamaran</Button>
         </nav>
         <div className="mx-auto max-w-7xl px-5 pb-24 pt-8 sm:px-8 lg:px-10 lg:pb-28 lg:pt-12">
-          <div className="max-w-2xl"><div className="eyebrow"><Sparkles aria-hidden="true" /> RAPIKAN PROSESMU</div><h1>Semua peluangmu,<br /><span>dalam satu jejak.</span></h1><p className="hero-copy">Catat setiap lowongan, pantau tahap seleksi, dan jangan lewatkan tindak lanjut penting.</p></div>
+          <div className="max-w-3xl"><div className="eyebrow"><Sparkles aria-hidden="true" /> TAMBAH DALAM HITUNGAN DETIK</div><h1>Tempel link.<br /><span>Datanya langsung masuk.</span></h1><p className="hero-copy">Masukkan tautan lowongan dan Jejak Karier akan mengambil posisi, perusahaan, lokasi, dan detail pentingnya untukmu.</p>
+            <form className="import-bar" onSubmit={importJob}>
+              <Link2 aria-hidden="true" />
+              <Input aria-label="Link lowongan kerja" type="url" required value={importUrl} onChange={(event) => setImportUrl(event.target.value)} placeholder="Tempel link lowongan di sini..." />
+              <Button type="submit" disabled={importing}>{importing ? <><LoaderCircle className="spin" /> Membaca...</> : "Ambil data"}</Button>
+            </form>
+            {importError && <p className="import-error"><CircleAlert /> {importError}</p>}
+            <p className="import-help">Berfungsi paling baik pada halaman lowongan yang dapat diakses publik.</p>
+          </div>
         </div>
       </section>
 
