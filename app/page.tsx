@@ -10,6 +10,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { NativeSelect, NativeSelectOption } from "@/components/ui/native-select";
 import { Textarea } from "@/components/ui/textarea";
+import { Sheet, SheetContent, SheetDescription, SheetFooter, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 
 const statuses = ["Tersimpan", "Dilamar", "Wawancara", "Penawaran", "Selesai"] as const;
 type Status = (typeof statuses)[number];
@@ -66,6 +67,7 @@ export default function Home() {
   const [importing, setImporting] = useState(false);
   const [importError, setImportError] = useState("");
   const [updatingId, setUpdatingId] = useState<number | null>(null);
+  const [selectedApplication, setSelectedApplication] = useState<Application | null>(null);
 
   async function loadApplications() {
     try {
@@ -134,6 +136,7 @@ export default function Home() {
     setForm({ company: item.company, role: item.role, status: item.status, location: item.location, workMode: item.workMode, jobUrl: item.jobUrl, salary: item.salary, appliedDate: item.appliedDate, nextStepDate: item.nextStepDate, notes: item.notes });
     setDialogOpen(true);
   }
+  function openDetail(item: Application) { setSelectedApplication(item); }
 
   async function importJob(event: FormEvent) {
     event.preventDefault();
@@ -187,6 +190,7 @@ export default function Home() {
       const data = await response.json() as { application: Application; error?: string };
       if (!response.ok) throw new Error(data.error || "Status belum berhasil diperbarui.");
       setItems((current) => current.map((currentItem) => currentItem.id === item.id ? data.application : currentItem));
+      setSelectedApplication((current) => current?.id === item.id ? data.application : current);
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : "Status belum berhasil diperbarui.");
     } finally { setUpdatingId(null); }
@@ -237,6 +241,7 @@ export default function Home() {
                   <div className="quick-status"><span>Ubah status</span><NativeSelect aria-label={`Ubah status ${item.role} di ${item.company}`} size="sm" value={item.status} disabled={item.id < 0 || updatingId === item.id} onChange={(event) => void updateStatus(item, event.target.value as Status)}>{statuses.map((status) => <NativeSelectOption key={status} value={status}>{status}</NativeSelectOption>)}</NativeSelect>{updatingId === item.id && <LoaderCircle className="spin" aria-label="Memperbarui status" />}</div>
                 </div>
                 <div className="card-actions">
+                  <Button variant="outline" size="sm" className="detail-button" onClick={() => openDetail(item)}>Detail</Button>
                   {item.jobUrl && <Button variant="ghost" size="icon" asChild><a href={item.jobUrl} target="_blank" rel="noreferrer" aria-label="Buka lowongan"><ArrowUpRight /></a></Button>}
                   <DropdownMenu><DropdownMenuTrigger asChild><Button variant="ghost" size="icon" aria-label="Aksi lainnya" disabled={item.id < 0}><MoreHorizontal /></Button></DropdownMenuTrigger><DropdownMenuContent align="end"><DropdownMenuItem onClick={() => openEdit(item)}><Pencil /> Edit lamaran</DropdownMenuItem><DropdownMenuItem variant="destructive" onClick={() => setDeleteTarget(item)}><Trash2 /> Hapus</DropdownMenuItem></DropdownMenuContent></DropdownMenu>
                   <ChevronRight className="chevron" aria-hidden="true" />
@@ -261,6 +266,25 @@ export default function Home() {
           <div><Label htmlFor="next">Langkah berikutnya</Label><Input id="next" type="date" value={form.nextStepDate} onChange={(e) => setForm({ ...form, nextStepDate: e.target.value })} /></div>
         </div><div><Label htmlFor="url">Tautan lowongan</Label><Input id="url" type="url" value={form.jobUrl} onChange={(e) => setForm({ ...form, jobUrl: e.target.value })} placeholder="https://..." /></div><div><Label htmlFor="notes">Catatan</Label><Textarea id="notes" value={form.notes} onChange={(e) => setForm({ ...form, notes: e.target.value })} placeholder="Kontak recruiter, persiapan wawancara, atau hal penting lainnya..." rows={4} /></div><DialogFooter><Button type="button" variant="outline" onClick={() => setDialogOpen(false)}>Batal</Button><Button type="submit" disabled={saving}>{saving ? "Menyimpan..." : editing ? "Simpan perubahan" : "Tambah lamaran"}</Button></DialogFooter></form>
       </DialogContent></Dialog>
+
+      <Sheet open={Boolean(selectedApplication)} onOpenChange={(open) => !open && setSelectedApplication(null)}>
+        <SheetContent className="w-full overflow-y-auto sm:max-w-md">
+          {selectedApplication && <>
+            <SheetHeader className="detail-header">
+              <div className="detail-avatar">{selectedApplication.company.slice(0, 1).toUpperCase()}</div>
+              <div><SheetTitle className="detail-title">{selectedApplication.role}</SheetTitle><SheetDescription className="detail-company"><Building2 /> {selectedApplication.company}</SheetDescription></div>
+              <span className={`status-pill ${statusStyle[selectedApplication.status]}`}>{selectedApplication.status}</span>
+            </SheetHeader>
+            <div className="detail-body">
+              <section className="detail-section"><p className="detail-label">RINGKASAN</p><div className="detail-grid"><div><span>Lokasi</span><strong>{selectedApplication.location || "Belum diisi"}</strong></div><div><span>Cara kerja</span><strong>{selectedApplication.workMode}</strong></div><div><span>Tanggal dilamar</span><strong>{dateLabel(selectedApplication.appliedDate)}</strong></div><div><span>Langkah berikutnya</span><strong>{dateLabel(selectedApplication.nextStepDate)}</strong></div>{selectedApplication.salary && <div><span>Rentang gaji</span><strong>{selectedApplication.salary}</strong></div>}</div></section>
+              {selectedApplication.notes && <section className="detail-section"><p className="detail-label">CATATAN</p><p className="detail-notes">{selectedApplication.notes}</p></section>}
+              {selectedApplication.jobUrl && <section className="detail-section"><p className="detail-label">LOWONGAN ASLI</p><a className="detail-link" href={selectedApplication.jobUrl} target="_blank" rel="noreferrer"><span>{selectedApplication.jobUrl}</span><ArrowUpRight /></a></section>}
+              <section className="detail-section"><p className="detail-label">PERBARUI STATUS</p><NativeSelect className="w-full" value={selectedApplication.status} disabled={selectedApplication.id < 0 || updatingId === selectedApplication.id} onChange={(event) => void updateStatus(selectedApplication, event.target.value as Status)}>{statuses.map((status) => <NativeSelectOption key={status} value={status}>{status}</NativeSelectOption>)}</NativeSelect></section>
+            </div>
+            <SheetFooter className="detail-footer"><Button variant="outline" onClick={() => { openEdit(selectedApplication); setSelectedApplication(null); }} disabled={selectedApplication.id < 0}><Pencil /> Edit</Button><Button variant="destructive" onClick={() => { setDeleteTarget(selectedApplication); setSelectedApplication(null); }} disabled={selectedApplication.id < 0}><Trash2 /> Hapus</Button></SheetFooter>
+          </>}
+        </SheetContent>
+      </Sheet>
 
       <AlertDialog open={Boolean(deleteTarget)} onOpenChange={(open) => !open && setDeleteTarget(null)}><AlertDialogContent><AlertDialogHeader><AlertDialogTitle>Hapus lamaran ini?</AlertDialogTitle><AlertDialogDescription>Catatan untuk {deleteTarget?.role} di {deleteTarget?.company} akan dihapus permanen.</AlertDialogDescription></AlertDialogHeader><AlertDialogFooter><AlertDialogCancel>Batal</AlertDialogCancel><AlertDialogAction variant="destructive" onClick={removeApplication}>Hapus</AlertDialogAction></AlertDialogFooter></AlertDialogContent></AlertDialog>
     </main>
