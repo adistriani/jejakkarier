@@ -241,7 +241,7 @@ export default function Home() {
       <section className="hero-shell">
         <nav className="mx-auto flex max-w-7xl items-center justify-between px-5 py-5 sm:px-8 lg:px-10">
           <div className="flex items-center gap-3"><div className="brand-mark"><BriefcaseBusiness aria-hidden="true" /></div><div><p className="brand-name">Jejak Karier</p><p className="brand-kicker">TRACKER LAMARAN</p></div></div>
-          {isSignedIn ? <Button onClick={openCreate} className="add-button h-11 rounded-full px-5"><Plus aria-hidden="true" /> Tambah lamaran</Button> : <Button onClick={() => openAuth()} className="add-button h-11 rounded-full px-5"><LogIn aria-hidden="true" /> Masuk</Button>}
+          {isSignedIn ? <div className="user-chip"><UserRound aria-hidden="true" /><span className="user-chip-name">{session?.user.name || session?.user.email}</span><button type="button" onClick={() => void signOut()}>Keluar</button></div> : <Button onClick={() => openAuth()} className="add-button h-11 rounded-full px-5"><LogIn aria-hidden="true" /> Masuk</Button>}
         </nav>
         <div className="mx-auto max-w-7xl px-5 pb-24 pt-8 sm:px-8 lg:px-10 lg:pb-28 lg:pt-12">
           <div className="max-w-3xl"><div className="eyebrow"><Sparkles aria-hidden="true" /> TAMBAH DALAM HITUNGAN DETIK</div><h1>Tempel link.<br /><span>Detail lokermu langsung masuk.</span></h1><p className="hero-copy">Jejak Karier membantu merapikan detail dan progres setiap lamaranmu.</p>
@@ -265,7 +265,7 @@ export default function Home() {
         </div>
 
         <div className="workspace-panel mt-6">
-          <div className="workspace-top"><div><p className="section-kicker">LAMARANMU</p><h2>Peluang yang sedang kamu kejar</h2>{isSignedIn && <div className="mt-2 flex items-center gap-2 text-sm text-slate-500"><UserRound className="size-4" /><span>{session?.user.name || session?.user.email}</span><button type="button" onClick={() => void signOut()} className="font-semibold text-[#1555d6] hover:underline">Keluar</button></div>}</div><div className="search-box"><Search aria-hidden="true" /><Input aria-label="Cari perusahaan atau posisi" value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Cari perusahaan atau posisi..." /></div></div>
+          <div className="workspace-top"><div><p className="section-kicker">LAMARANMU</p><h2>Peluang yang sedang kamu kejar</h2></div><div className="workspace-actions">{isSignedIn && <Button onClick={openCreate} className="add-button h-11 rounded-xl px-5"><Plus aria-hidden="true" /> Tambah lamaran</Button>}<div className="search-box"><Search aria-hidden="true" /><Input aria-label="Cari perusahaan atau posisi" value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Cari perusahaan atau posisi..." /></div></div></div>
           <div className="filter-row" aria-label="Filter status">
             {(["Semua", ...statuses] as const).map((status) => <button key={status} className={filter === status ? "active" : ""} onClick={() => setFilter(status)}>{status}<span>{status === "Semua" ? items.length : items.filter((item) => item.status === status).length}</span></button>)}
           </div>
