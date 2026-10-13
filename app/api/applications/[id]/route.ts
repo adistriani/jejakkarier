@@ -1,12 +1,15 @@
-import { eq, sql } from "drizzle-orm";
+import { and, eq, sql } from "drizzle-orm";
 import { getDb } from "@/db";
 import { applications } from "@/db/schema";
+import { getCurrentUser } from "@/lib/current-user";
 
 const validStatuses = new Set(["Tersimpan", "Dilamar", "Wawancara", "Penawaran", "Selesai"]);
 function clean(value: unknown) { return typeof value === "string" ? value.trim() : ""; }
 
 export async function PATCH(request: Request, { params }: { params: Promise<{ id: string }> }) {
   try {
+    const user = await getCurrentUser();
+    if (!user) return Response.json({ error: "Silakan masuk terlebih dahulu." }, { status: 401 });
     const id = Number.parseInt((await params).id, 10);
     if (!Number.isFinite(id)) return Response.json({ error: "Lamaran tidak ditemukan." }, { status: 404 });
     const payload = await request.json() as Record<string, unknown>;
@@ -17,7 +20,7 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
       company, role, status, location: clean(payload.location), workMode: clean(payload.workMode) || "Remote",
       jobUrl: clean(payload.jobUrl), salary: clean(payload.salary), appliedDate: clean(payload.appliedDate),
       nextStepDate: clean(payload.nextStepDate), notes: clean(payload.notes), updatedAt: sql`CURRENT_TIMESTAMP`,
-    }).where(eq(applications.id, id)).returning();
+    }).where(and(eq(applications.id, id), eq(applications.userId, user.id))).returning();
     if (!application) return Response.json({ error: "Lamaran tidak ditemukan." }, { status: 404 });
     return Response.json({ application });
   } catch { return Response.json({ error: "Perubahan belum dapat disimpan. Coba lagi." }, { status: 500 }); }
@@ -25,9 +28,11 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
 
 export async function DELETE(_: Request, { params }: { params: Promise<{ id: string }> }) {
   try {
+    const user = await getCurrentUser();
+    if (!user) return Response.json({ error: "Silakan masuk terlebih dahulu." }, { status: 401 });
     const id = Number.parseInt((await params).id, 10);
     if (!Number.isFinite(id)) return Response.json({ error: "Lamaran tidak ditemukan." }, { status: 404 });
-    const [deleted] = await getDb().delete(applications).where(eq(applications.id, id)).returning({ id: applications.id });
+    const [deleted] = await getDb().delete(applications).where(and(eq(applications.id, id), eq(applications.userId, user.id))).returning({ id: applications.id });
     if (!deleted) return Response.json({ error: "Lamaran tidak ditemukan." }, { status: 404 });
     return Response.json({ deleted: true, id: deleted.id });
   } catch { return Response.json({ error: "Lamaran belum dapat dihapus. Coba lagi." }, { status: 500 }); }

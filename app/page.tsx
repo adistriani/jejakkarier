@@ -1,7 +1,7 @@
 "use client";
 
 import { FormEvent, useEffect, useMemo, useRef, useState } from "react";
-import { ArrowUpRight, BriefcaseBusiness, Building2, CalendarDays, Check, CircleAlert, Clock3, Link2, LoaderCircle, MapPin, Pencil, Plus, Search, Sparkles, Trash2 } from "lucide-react";
+import { ArrowUpRight, BriefcaseBusiness, Building2, CalendarDays, Check, CircleAlert, Clock3, Link2, LoaderCircle, LogIn, LogOut, MapPin, Pencil, Plus, Search, Sparkles, Trash2, UserRound } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
@@ -10,6 +10,7 @@ import { Label } from "@/components/ui/label";
 import { NativeSelect, NativeSelectOption } from "@/components/ui/native-select";
 import { Textarea } from "@/components/ui/textarea";
 import { Sheet, SheetContent, SheetDescription, SheetFooter, SheetHeader, SheetTitle } from "@/components/ui/sheet";
+import { authClient } from "@/lib/auth-client";
 
 const statuses = ["Tersimpan", "Dilamar", "Wawancara", "Penawaran", "Selesai"] as const;
 type Status = (typeof statuses)[number];
@@ -26,8 +27,6 @@ const emptyForm: FormState = {
   jobUrl: "", salary: "", appliedDate: new Date().toISOString().slice(0, 10),
   nextStepDate: "", notes: "",
 };
-
-const localStorageKey = "jejakkarier.applications.v1";
 
 const statusStyle: Record<Status, string> = {
   Tersimpan: "status-saved", Dilamar: "status-applied", Wawancara: "status-interview",
@@ -47,6 +46,7 @@ function isDueSoon(date: string) {
 }
 
 export default function Home() {
+  const { data: session, isPending: sessionPending } = authClient.useSession();
   const [items, setItems] = useState<Application[]>([]);
   const itemsRef = useRef<Application[]>([]);
   const [loading, setLoading] = useState(true);
@@ -63,33 +63,44 @@ export default function Home() {
   const [importError, setImportError] = useState("");
   const [updatingId, setUpdatingId] = useState<number | null>(null);
   const [selectedApplication, setSelectedApplication] = useState<Application | null>(null);
+  const [authOpen, setAuthOpen] = useState(false);
+  const [authMode, setAuthMode] = useState<"sign-in" | "sign-up">("sign-in");
+  const [authName, setAuthName] = useState("");
+  const [authEmail, setAuthEmail] = useState("");
+  const [authPassword, setAuthPassword] = useState("");
+  const [authError, setAuthError] = useState("");
+  const [authSaving, setAuthSaving] = useState(false);
+  const isSignedIn = Boolean(session?.user);
 
   function saveApplications(nextItems: Application[]) {
     itemsRef.current = nextItems;
     setItems(nextItems);
+  }
+
+  async function loadApplications() {
+    setLoading(true);
     try {
-      window.localStorage.setItem(localStorageKey, JSON.stringify(nextItems));
-    } catch {
-      setError("Data belum bisa disimpan di browser ini. Periksa pengaturan penyimpanan browser.");
+      const response = await fetch("/api/applications", { cache: "no-store" });
+      const data = await response.json() as { applications?: Application[]; error?: string };
+      if (!response.ok) throw new Error(data.error || "Data belum dapat dimuat.");
+      saveApplications(data.applications ?? []);
+      setError("");
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : "Data belum dapat dimuat.");
+    } finally {
+      setLoading(false);
     }
   }
 
   useEffect(() => {
-    try {
-      const saved = window.localStorage.getItem(localStorageKey);
-      if (saved) {
-        const parsed = JSON.parse(saved) as unknown;
-        if (Array.isArray(parsed)) {
-          itemsRef.current = parsed as Application[];
-          setItems(parsed as Application[]);
-        }
-      }
-    } catch {
-      setError("Data lokal tidak dapat dibaca. Kamu bisa mulai menambahkan lamaran baru.");
-    } finally {
+    if (sessionPending) return;
+    if (!isSignedIn) {
+      saveApplications([]);
       setLoading(false);
+      return;
     }
-  }, []);
+    void loadApplications();
+  }, [isSignedIn, sessionPending]);
 
   useEffect(() => {
     const context = typeof document === "undefined" ? undefined : document.modelContext;
@@ -115,15 +126,17 @@ export default function Home() {
           const value = input as Partial<FormState>;
           if (!value.company?.trim() || !value.role?.trim()) throw new Error("Perusahaan dan posisi wajib diisi.");
           const payload = { ...emptyForm, ...value, company: value.company.trim(), role: value.role.trim() };
-          const application = createApplication(payload);
-          saveApplications([application, ...itemsRef.current]);
-          return { id: application.id, company: application.company, role: application.role, status: application.status };
+          const response = await fetch("/api/applications", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload) });
+          const data = await response.json() as { application?: Application; error?: string };
+          if (!response.ok || !data.application) throw new Error(data.error || "Masuk ke akunmu terlebih dahulu untuk menyimpan lamaran.");
+          saveApplications([data.application, ...itemsRef.current]);
+          return { id: data.application.id, company: data.application.company, role: data.application.role, status: data.application.status };
         },
       }, { signal: lifecycle.signal });
     };
     void register().catch(() => undefined);
     return () => lifecycle.abort();
-  }, []);
+  }, [isSignedIn]);
 
   const visibleItems = useMemo(() => {
     const query = search.trim().toLowerCase();
@@ -137,12 +150,8 @@ export default function Home() {
     due: items.filter((item) => isDueSoon(item.nextStepDate)).length,
   }), [items]);
 
-  function createApplication(payload: FormState): Application {
-    const now = new Date().toISOString();
-    return { ...payload, id: Date.now(), createdAt: now, updatedAt: now };
-  }
-
-  function openCreate() { setEditing(null); setForm({ ...emptyForm, appliedDate: new Date().toISOString().slice(0, 10) }); setDialogOpen(true); }
+  function openAuth(mode: "sign-in" | "sign-up" = "sign-in") { setAuthMode(mode); setAuthError(""); setAuthOpen(true); }
+  function openCreate() { if (!isSignedIn) return openAuth(); setEditing(null); setForm({ ...emptyForm, appliedDate: new Date().toISOString().slice(0, 10) }); setDialogOpen(true); }
   function openEdit(item: Application) {
     setEditing(item);
     setForm({ company: item.company, role: item.role, status: item.status, location: item.location, workMode: item.workMode, jobUrl: item.jobUrl, salary: item.salary, appliedDate: item.appliedDate, nextStepDate: item.nextStepDate, notes: item.notes });
@@ -153,6 +162,7 @@ export default function Home() {
   async function importJob(event: FormEvent) {
     event.preventDefault();
     if (!importUrl.trim()) return;
+    if (!isSignedIn) return openAuth();
     setImporting(true); setImportError("");
     try {
       const response = await fetch("/api/import-job", {
@@ -172,12 +182,12 @@ export default function Home() {
   async function submit(event: FormEvent) {
     event.preventDefault(); setSaving(true); setError("");
     try {
-      const application = editing
-        ? { ...editing, ...form, updatedAt: new Date().toISOString() }
-        : createApplication(form);
-      saveApplications(editing
-        ? itemsRef.current.map((item) => item.id === editing.id ? application : item)
-        : [application, ...itemsRef.current]);
+      const response = await fetch(editing ? `/api/applications/${editing.id}` : "/api/applications", {
+        method: editing ? "PATCH" : "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(form),
+      });
+      const data = await response.json() as { application?: Application; error?: string };
+      if (!response.ok || !data.application) throw new Error(data.error || "Lamaran belum berhasil disimpan.");
+      saveApplications(editing ? itemsRef.current.map((item) => item.id === editing.id ? data.application! : item) : [data.application, ...itemsRef.current]);
       setDialogOpen(false);
     } catch (cause) { setError(cause instanceof Error ? cause.message : "Lamaran belum berhasil disimpan."); }
     finally { setSaving(false); }
@@ -186,6 +196,8 @@ export default function Home() {
   async function removeApplication() {
     if (!deleteTarget) return;
     try {
+      const response = await fetch(`/api/applications/${deleteTarget.id}`, { method: "DELETE" });
+      if (!response.ok) throw new Error("Lamaran belum berhasil dihapus.");
       saveApplications(itemsRef.current.filter((item) => item.id !== deleteTarget.id)); setDeleteTarget(null);
     } catch (cause) { setError(cause instanceof Error ? cause.message : "Lamaran belum berhasil dihapus."); }
   }
@@ -194,12 +206,34 @@ export default function Home() {
     if (item.status === status) return;
     setUpdatingId(item.id); setError("");
     try {
-      const application = { ...item, status, updatedAt: new Date().toISOString() };
-      saveApplications(itemsRef.current.map((currentItem) => currentItem.id === item.id ? application : currentItem));
-      setSelectedApplication((current) => current?.id === item.id ? application : current);
+      const response = await fetch(`/api/applications/${item.id}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ ...item, status }) });
+      const data = await response.json() as { application?: Application; error?: string };
+      if (!response.ok || !data.application) throw new Error(data.error || "Status belum berhasil diperbarui.");
+      saveApplications(itemsRef.current.map((currentItem) => currentItem.id === item.id ? data.application! : currentItem));
+      setSelectedApplication((current) => current?.id === item.id ? data.application! : current);
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : "Status belum berhasil diperbarui.");
     } finally { setUpdatingId(null); }
+  }
+
+  async function submitAuth(event: FormEvent) {
+    event.preventDefault();
+    setAuthSaving(true); setAuthError("");
+    try {
+      const result = authMode === "sign-up"
+        ? await authClient.signUp.email({ name: authName.trim(), email: authEmail.trim(), password: authPassword })
+        : await authClient.signIn.email({ email: authEmail.trim(), password: authPassword });
+      if (result.error) throw new Error(result.error.message || "Akun belum dapat diproses.");
+      setAuthPassword(""); setAuthOpen(false);
+    } catch (cause) {
+      setAuthError(cause instanceof Error ? cause.message : "Akun belum dapat diproses.");
+    } finally { setAuthSaving(false); }
+  }
+
+  async function signOut() {
+    await authClient.signOut();
+    saveApplications([]);
+    setSelectedApplication(null);
   }
 
   return (
@@ -207,7 +241,7 @@ export default function Home() {
       <section className="hero-shell">
         <nav className="mx-auto flex max-w-7xl items-center justify-between px-5 py-5 sm:px-8 lg:px-10">
           <div className="flex items-center gap-3"><div className="brand-mark"><BriefcaseBusiness aria-hidden="true" /></div><div><p className="brand-name">Jejak Karier</p><p className="brand-kicker">TRACKER LAMARAN</p></div></div>
-          <Button onClick={openCreate} className="add-button h-11 rounded-full px-5"><Plus aria-hidden="true" /> Tambah lamaran</Button>
+          <div className="flex items-center gap-2">{isSignedIn ? <><span className="hidden text-sm font-semibold text-white/80 sm:inline">{session?.user.name || session?.user.email}</span><Button variant="ghost" size="icon" aria-label="Keluar" onClick={() => void signOut()} className="text-white hover:bg-white/10 hover:text-white"><LogOut /></Button><Button onClick={openCreate} className="add-button h-11 rounded-full px-5"><Plus aria-hidden="true" /> Tambah lamaran</Button></> : <Button onClick={() => openAuth()} className="add-button h-11 rounded-full px-5"><LogIn aria-hidden="true" /> Masuk</Button>}</div>
         </nav>
         <div className="mx-auto max-w-7xl px-5 pb-24 pt-8 sm:px-8 lg:px-10 lg:pb-28 lg:pt-12">
           <div className="max-w-3xl"><div className="eyebrow"><Sparkles aria-hidden="true" /> TAMBAH DALAM HITUNGAN DETIK</div><h1>Tempel link.<br /><span>Detail lokermu langsung masuk.</span></h1><p className="hero-copy">Jejak Karier membantu merapikan detail dan progres setiap lamaranmu.</p>
@@ -217,7 +251,7 @@ export default function Home() {
               <Button type="submit" disabled={importing}>{importing ? <><LoaderCircle className="spin" /> Membaca...</> : "Ambil data"}</Button>
             </form>
             {importError && <p className="import-error"><CircleAlert /> {importError}</p>}
-            <p className="import-help">Berfungsi paling baik pada halaman lowongan yang dapat diakses publik. Data lamaran disimpan di browser perangkat ini.</p>
+            <p className="import-help">Berfungsi paling baik pada halaman lowongan yang dapat diakses publik. Masuk ke akunmu agar data tersedia di semua perangkat.</p>
           </div>
         </div>
       </section>
@@ -268,6 +302,10 @@ export default function Home() {
         </div><div><Label htmlFor="url">Tautan lowongan</Label><Input id="url" type="url" value={form.jobUrl} onChange={(e) => setForm({ ...form, jobUrl: e.target.value })} placeholder="https://..." /></div><div><Label htmlFor="notes">Catatan</Label><Textarea id="notes" value={form.notes} onChange={(e) => setForm({ ...form, notes: e.target.value })} placeholder="Kontak recruiter, persiapan wawancara, atau hal penting lainnya..." rows={4} /></div><DialogFooter><Button type="button" variant="outline" onClick={() => setDialogOpen(false)}>Batal</Button><Button type="submit" disabled={saving}>{saving ? "Menyimpan..." : editing ? "Simpan perubahan" : "Tambah lamaran"}</Button></DialogFooter></form>
       </DialogContent></Dialog>
 
+      <Dialog open={authOpen} onOpenChange={setAuthOpen}><DialogContent className="sm:max-w-md"><DialogHeader><div className="mb-2 flex size-11 items-center justify-center rounded-2xl bg-[#fff0b8] text-[#0d3989]"><UserRound /></div><DialogTitle>{authMode === "sign-up" ? "Buat akun Jejak Karier" : "Masuk ke Jejak Karier"}</DialogTitle><DialogDescription>{authMode === "sign-up" ? "Simpan lamaranmu dengan aman dan akses dari perangkat mana pun." : "Masuk untuk melihat dan memperbarui lamaranmu dari perangkat mana pun."}</DialogDescription></DialogHeader>
+        <form onSubmit={submitAuth} className="application-form">{authMode === "sign-up" && <div><Label htmlFor="auth-name">Nama</Label><Input id="auth-name" required value={authName} onChange={(event) => setAuthName(event.target.value)} placeholder="Namamu" /></div>}<div><Label htmlFor="auth-email">Email</Label><Input id="auth-email" type="email" required value={authEmail} onChange={(event) => setAuthEmail(event.target.value)} placeholder="nama@email.com" /></div><div><Label htmlFor="auth-password">Kata sandi</Label><Input id="auth-password" type="password" required minLength={8} value={authPassword} onChange={(event) => setAuthPassword(event.target.value)} placeholder="Minimal 8 karakter" /></div>{authError && <p className="import-error"><CircleAlert /> {authError}</p>}<DialogFooter className="gap-3 sm:justify-between"><Button type="button" variant="ghost" onClick={() => { setAuthMode(authMode === "sign-in" ? "sign-up" : "sign-in"); setAuthError(""); }}>{authMode === "sign-in" ? "Buat akun" : "Sudah punya akun? Masuk"}</Button><Button type="submit" disabled={authSaving}>{authSaving ? "Memproses..." : authMode === "sign-up" ? "Daftar" : "Masuk"}</Button></DialogFooter></form>
+      </DialogContent></Dialog>
+
       <Sheet open={Boolean(selectedApplication)} onOpenChange={(open) => !open && setSelectedApplication(null)}>
         <SheetContent className="w-full overflow-y-auto sm:max-w-md">
           {selectedApplication && <>
@@ -280,9 +318,9 @@ export default function Home() {
               <section className="detail-section"><p className="detail-label">RINGKASAN</p><div className="detail-grid"><div><span>Lokasi</span><strong>{selectedApplication.location || "Belum diisi"}</strong></div><div><span>Cara kerja</span><strong>{selectedApplication.workMode}</strong></div><div><span>Tanggal dilamar</span><strong>{dateLabel(selectedApplication.appliedDate)}</strong></div><div><span>Langkah berikutnya</span><strong>{dateLabel(selectedApplication.nextStepDate)}</strong></div>{selectedApplication.salary && <div><span>Rentang gaji</span><strong>{selectedApplication.salary}</strong></div>}</div></section>
               {selectedApplication.notes && <section className="detail-section"><p className="detail-label">CATATAN</p><p className="detail-notes">{selectedApplication.notes}</p></section>}
               {selectedApplication.jobUrl && <section className="detail-section"><p className="detail-label">LOWONGAN ASLI</p><a className="detail-link" href={selectedApplication.jobUrl} target="_blank" rel="noreferrer"><span>{selectedApplication.jobUrl}</span><ArrowUpRight /></a></section>}
-              <section className="detail-section"><p className="detail-label">PERBARUI STATUS</p><NativeSelect className="w-full" value={selectedApplication.status} disabled={selectedApplication.id < 0 || updatingId === selectedApplication.id} onChange={(event) => void updateStatus(selectedApplication, event.target.value as Status)}>{statuses.map((status) => <NativeSelectOption key={status} value={status}>{status}</NativeSelectOption>)}</NativeSelect></section>
+              <section className="detail-section"><p className="detail-label">PERBARUI STATUS</p><NativeSelect className="w-full" value={selectedApplication.status} disabled={updatingId === selectedApplication.id} onChange={(event) => void updateStatus(selectedApplication, event.target.value as Status)}>{statuses.map((status) => <NativeSelectOption key={status} value={status}>{status}</NativeSelectOption>)}</NativeSelect></section>
             </div>
-            <SheetFooter className="detail-footer"><Button variant="outline" onClick={() => { openEdit(selectedApplication); setSelectedApplication(null); }} disabled={selectedApplication.id < 0}><Pencil /> Edit</Button><Button variant="destructive" onClick={() => { setDeleteTarget(selectedApplication); setSelectedApplication(null); }} disabled={selectedApplication.id < 0}><Trash2 /> Hapus</Button></SheetFooter>
+            <SheetFooter className="detail-footer"><Button variant="outline" onClick={() => { openEdit(selectedApplication); setSelectedApplication(null); }}><Pencil /> Edit</Button><Button variant="destructive" onClick={() => { setDeleteTarget(selectedApplication); setSelectedApplication(null); }}><Trash2 /> Hapus</Button></SheetFooter>
           </>}
         </SheetContent>
       </Sheet>
