@@ -1,0 +1,11 @@
+.cache
+.sites-runtime
+.wrangler
+.vinext
+.next
+dist
+build
+node_modules
+outputs
+work
+*.tsbuildinfo

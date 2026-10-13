@@ -1,11 +1,10 @@
 "use client";
 
-import { FormEvent, useEffect, useMemo, useState } from "react";
-import { ArrowUpRight, BriefcaseBusiness, Building2, CalendarDays, Check, ChevronRight, CircleAlert, Clock3, Link2, LoaderCircle, MapPin, MoreHorizontal, Pencil, Plus, Search, Sparkles, Trash2 } from "lucide-react";
+import { FormEvent, useEffect, useMemo, useRef, useState } from "react";
+import { ArrowUpRight, BriefcaseBusiness, Building2, CalendarDays, Check, CircleAlert, Clock3, Link2, LoaderCircle, MapPin, Pencil, Plus, Search, Sparkles, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
-import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { NativeSelect, NativeSelectOption } from "@/components/ui/native-select";
@@ -28,11 +27,7 @@ const emptyForm: FormState = {
   nextStepDate: "", notes: "",
 };
 
-const sampleApplications: Application[] = [
-  { id: -1, company: "Studio Nusantara", role: "Product Designer", status: "Wawancara", location: "Jakarta", workMode: "Hybrid", jobUrl: "", salary: "", appliedDate: "2026-09-18", nextStepDate: "2026-09-25", notes: "Siapkan studi kasus redesign dan pertanyaan untuk tim produk.", createdAt: "", updatedAt: "" },
-  { id: -2, company: "Kreasi Digital", role: "UX Researcher", status: "Dilamar", location: "Bandung", workMode: "Remote", jobUrl: "", salary: "", appliedDate: "2026-09-20", nextStepDate: "2026-09-27", notes: "Follow up bila belum ada kabar dalam satu minggu.", createdAt: "", updatedAt: "" },
-  { id: -3, company: "Langkah Baru", role: "Senior UI Designer", status: "Tersimpan", location: "Surabaya", workMode: "On-site", jobUrl: "", salary: "", appliedDate: "", nextStepDate: "2026-09-24", notes: "Sesuaikan CV dengan kebutuhan design system.", createdAt: "", updatedAt: "" },
-];
+const localStorageKey = "jejakkarier.applications.v1";
 
 const statusStyle: Record<Status, string> = {
   Tersimpan: "status-saved", Dilamar: "status-applied", Wawancara: "status-interview",
@@ -52,8 +47,8 @@ function isDueSoon(date: string) {
 }
 
 export default function Home() {
-  const [items, setItems] = useState<Application[]>(sampleApplications);
-  const [isDemo, setIsDemo] = useState(true);
+  const [items, setItems] = useState<Application[]>([]);
+  const itemsRef = useRef<Application[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [search, setSearch] = useState("");
@@ -69,17 +64,32 @@ export default function Home() {
   const [updatingId, setUpdatingId] = useState<number | null>(null);
   const [selectedApplication, setSelectedApplication] = useState<Application | null>(null);
 
-  async function loadApplications() {
+  function saveApplications(nextItems: Application[]) {
+    itemsRef.current = nextItems;
+    setItems(nextItems);
     try {
-      const response = await fetch("/api/applications", { cache: "no-store" });
-      const data = await response.json() as { applications: Application[]; error?: string };
-      if (!response.ok) throw new Error(data.error || "Data belum dapat dimuat.");
-      setItems(data.applications); setIsDemo(false); setError("");
-    } catch { setError("Mode pratinjau aktif. Data contoh ditampilkan sementara."); }
-    finally { setLoading(false); }
+      window.localStorage.setItem(localStorageKey, JSON.stringify(nextItems));
+    } catch {
+      setError("Data belum bisa disimpan di browser ini. Periksa pengaturan penyimpanan browser.");
+    }
   }
 
-  useEffect(() => { void loadApplications(); }, []);
+  useEffect(() => {
+    try {
+      const saved = window.localStorage.getItem(localStorageKey);
+      if (saved) {
+        const parsed = JSON.parse(saved) as unknown;
+        if (Array.isArray(parsed)) {
+          itemsRef.current = parsed as Application[];
+          setItems(parsed as Application[]);
+        }
+      }
+    } catch {
+      setError("Data lokal tidak dapat dibaca. Kamu bisa mulai menambahkan lamaran baru.");
+    } finally {
+      setLoading(false);
+    }
+  }, []);
 
   useEffect(() => {
     const context = typeof document === "undefined" ? undefined : document.modelContext;
@@ -105,11 +115,9 @@ export default function Home() {
           const value = input as Partial<FormState>;
           if (!value.company?.trim() || !value.role?.trim()) throw new Error("Perusahaan dan posisi wajib diisi.");
           const payload = { ...emptyForm, ...value, company: value.company.trim(), role: value.role.trim() };
-          const response = await fetch("/api/applications", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload) });
-          const data = await response.json() as { application: Application; error?: string };
-          if (!response.ok) throw new Error(data.error || "Gagal menyimpan lamaran.");
-          setItems((current) => [data.application, ...current.filter((item) => item.id > 0)]); setIsDemo(false);
-          return { id: data.application.id, company: data.application.company, role: data.application.role, status: data.application.status };
+          const application = createApplication(payload);
+          saveApplications([application, ...itemsRef.current]);
+          return { id: application.id, company: application.company, role: application.role, status: application.status };
         },
       }, { signal: lifecycle.signal });
     };
@@ -129,9 +137,13 @@ export default function Home() {
     due: items.filter((item) => isDueSoon(item.nextStepDate)).length,
   }), [items]);
 
+  function createApplication(payload: FormState): Application {
+    const now = new Date().toISOString();
+    return { ...payload, id: Date.now(), createdAt: now, updatedAt: now };
+  }
+
   function openCreate() { setEditing(null); setForm({ ...emptyForm, appliedDate: new Date().toISOString().slice(0, 10) }); setDialogOpen(true); }
   function openEdit(item: Application) {
-    if (item.id < 0) return;
     setEditing(item);
     setForm({ company: item.company, role: item.role, status: item.status, location: item.location, workMode: item.workMode, jobUrl: item.jobUrl, salary: item.salary, appliedDate: item.appliedDate, nextStepDate: item.nextStepDate, notes: item.notes });
     setDialogOpen(true);
@@ -160,11 +172,13 @@ export default function Home() {
   async function submit(event: FormEvent) {
     event.preventDefault(); setSaving(true); setError("");
     try {
-      const response = await fetch(editing ? `/api/applications/${editing.id}` : "/api/applications", { method: editing ? "PATCH" : "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(form) });
-      const data = await response.json() as { application: Application; error?: string };
-      if (!response.ok) throw new Error(data.error || "Lamaran belum berhasil disimpan.");
-      setItems((current) => editing ? current.map((item) => item.id === editing.id ? data.application : item) : [data.application, ...current.filter((item) => item.id > 0)]);
-      setIsDemo(false); setDialogOpen(false);
+      const application = editing
+        ? { ...editing, ...form, updatedAt: new Date().toISOString() }
+        : createApplication(form);
+      saveApplications(editing
+        ? itemsRef.current.map((item) => item.id === editing.id ? application : item)
+        : [application, ...itemsRef.current]);
+      setDialogOpen(false);
     } catch (cause) { setError(cause instanceof Error ? cause.message : "Lamaran belum berhasil disimpan."); }
     finally { setSaving(false); }
   }
@@ -172,25 +186,17 @@ export default function Home() {
   async function removeApplication() {
     if (!deleteTarget) return;
     try {
-      const response = await fetch(`/api/applications/${deleteTarget.id}`, { method: "DELETE" });
-      if (!response.ok) throw new Error("Lamaran belum berhasil dihapus.");
-      setItems((current) => current.filter((item) => item.id !== deleteTarget.id)); setDeleteTarget(null);
+      saveApplications(itemsRef.current.filter((item) => item.id !== deleteTarget.id)); setDeleteTarget(null);
     } catch (cause) { setError(cause instanceof Error ? cause.message : "Lamaran belum berhasil dihapus."); }
   }
 
   async function updateStatus(item: Application, status: Status) {
-    if (item.id < 0 || item.status === status) return;
+    if (item.status === status) return;
     setUpdatingId(item.id); setError("");
     try {
-      const { id: _, createdAt: __, updatedAt: ___, ...payload } = item;
-      const response = await fetch(`/api/applications/${item.id}`, {
-        method: "PATCH", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ ...payload, status }),
-      });
-      const data = await response.json() as { application: Application; error?: string };
-      if (!response.ok) throw new Error(data.error || "Status belum berhasil diperbarui.");
-      setItems((current) => current.map((currentItem) => currentItem.id === item.id ? data.application : currentItem));
-      setSelectedApplication((current) => current?.id === item.id ? data.application : current);
+      const application = { ...item, status, updatedAt: new Date().toISOString() };
+      saveApplications(itemsRef.current.map((currentItem) => currentItem.id === item.id ? application : currentItem));
+      setSelectedApplication((current) => current?.id === item.id ? application : current);
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : "Status belum berhasil diperbarui.");
     } finally { setUpdatingId(null); }
@@ -204,14 +210,14 @@ export default function Home() {
           <Button onClick={openCreate} className="add-button h-11 rounded-full px-5"><Plus aria-hidden="true" /> Tambah lamaran</Button>
         </nav>
         <div className="mx-auto max-w-7xl px-5 pb-24 pt-8 sm:px-8 lg:px-10 lg:pb-28 lg:pt-12">
-          <div className="max-w-3xl"><div className="eyebrow"><Sparkles aria-hidden="true" /> TAMBAH DALAM HITUNGAN DETIK</div><h1>Tempel link.<br /><span>Datanya langsung masuk.</span></h1><p className="hero-copy">Masukkan tautan lowongan dan Jejak Karier akan mengambil posisi, perusahaan, lokasi, dan detail pentingnya untukmu.</p>
+          <div className="max-w-3xl"><div className="eyebrow"><Sparkles aria-hidden="true" /> TAMBAH DALAM HITUNGAN DETIK</div><h1>Tempel link.<br /><span>Detail lokermu langsung masuk.</span></h1><p className="hero-copy">Jejak Karier membantu merapikan detail dan progres setiap lamaranmu.</p>
             <form className="import-bar" onSubmit={importJob}>
               <Link2 aria-hidden="true" />
               <Input aria-label="Link lowongan kerja" type="url" required value={importUrl} onChange={(event) => setImportUrl(event.target.value)} placeholder="Tempel link lowongan di sini..." />
               <Button type="submit" disabled={importing}>{importing ? <><LoaderCircle className="spin" /> Membaca...</> : "Ambil data"}</Button>
             </form>
             {importError && <p className="import-error"><CircleAlert /> {importError}</p>}
-            <p className="import-help">Berfungsi paling baik pada halaman lowongan yang dapat diakses publik.</p>
+            <p className="import-help">Berfungsi paling baik pada halaman lowongan yang dapat diakses publik. Data lamaran disimpan di browser perangkat ini.</p>
           </div>
         </div>
       </section>
@@ -235,22 +241,17 @@ export default function Home() {
               <article key={item.id} className="application-card">
                 <div className="company-avatar" aria-hidden="true">{item.company.slice(0, 1).toUpperCase()}</div>
                 <div className="application-main">
-                  <div className="application-title-row"><div><h3>{item.role}</h3><p className="company"><Building2 /> {item.company}</p></div><span className={`status-pill ${statusStyle[item.status]}`}>{item.status}</span></div>
+                  <div className="application-title-row"><div className="title-line"><h3>{item.role}</h3><span className={`status-pill ${statusStyle[item.status]}`}>{item.status}</span></div><p className="company"><Building2 /> {item.company}</p></div>
                   <div className="meta-row"><span><MapPin /> {item.location || "Lokasi belum diisi"}</span><span>{item.workMode}</span>{item.appliedDate && <span>Dilamar {dateLabel(item.appliedDate)}</span>}</div>
-                  <div className="next-step"><Clock3 /><div><span>Langkah berikutnya</span><strong>{dateLabel(item.nextStepDate)}</strong></div>{isDueSoon(item.nextStepDate) && <em>Segera</em>}</div>
-                  <div className="quick-status"><span>Ubah status</span><NativeSelect aria-label={`Ubah status ${item.role} di ${item.company}`} size="sm" value={item.status} disabled={item.id < 0 || updatingId === item.id} onChange={(event) => void updateStatus(item, event.target.value as Status)}>{statuses.map((status) => <NativeSelectOption key={status} value={status}>{status}</NativeSelectOption>)}</NativeSelect>{updatingId === item.id && <LoaderCircle className="spin" aria-label="Memperbarui status" />}</div>
+                  <div className="quick-status"><NativeSelect aria-label={`Ubah status ${item.role} di ${item.company}`} size="sm" value={item.status} disabled={updatingId === item.id} onChange={(event) => void updateStatus(item, event.target.value as Status)}>{statuses.map((status) => <NativeSelectOption key={status} value={status}>{status}</NativeSelectOption>)}</NativeSelect>{updatingId === item.id && <LoaderCircle className="spin" aria-label="Memperbarui status" />}</div>
                 </div>
                 <div className="card-actions">
                   <Button variant="outline" size="sm" className="detail-button" onClick={() => openDetail(item)}>Detail</Button>
-                  {item.jobUrl && <Button variant="ghost" size="icon" asChild><a href={item.jobUrl} target="_blank" rel="noreferrer" aria-label="Buka lowongan"><ArrowUpRight /></a></Button>}
-                  <DropdownMenu><DropdownMenuTrigger asChild><Button variant="ghost" size="icon" aria-label="Aksi lainnya" disabled={item.id < 0}><MoreHorizontal /></Button></DropdownMenuTrigger><DropdownMenuContent align="end"><DropdownMenuItem onClick={() => openEdit(item)}><Pencil /> Edit lamaran</DropdownMenuItem><DropdownMenuItem variant="destructive" onClick={() => setDeleteTarget(item)}><Trash2 /> Hapus</DropdownMenuItem></DropdownMenuContent></DropdownMenu>
-                  <ChevronRight className="chevron" aria-hidden="true" />
                 </div>
               </article>
             ))}
             {!loading && visibleItems.length === 0 && <div className="empty-state"><div><BriefcaseBusiness /></div><h3>{search || filter !== "Semua" ? "Belum ada yang cocok" : "Mulai jejak pertamamu"}</h3><p>{search || filter !== "Semua" ? "Coba ubah kata pencarian atau filter status." : "Tambahkan lowongan pertama agar semua proses tetap terpantau."}</p>{!search && filter === "Semua" && <Button onClick={openCreate}><Plus /> Tambah lamaran</Button>}</div>}
           </div>
-          {isDemo && <p className="demo-note">Data contoh untuk memperlihatkan tampilan tracker. Tambahkan lamaran untuk mulai memakai datamu sendiri.</p>}
         </div>
       </section>
 
