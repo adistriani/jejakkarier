@@ -43,6 +43,19 @@ h1 span { color:#ffd24a; }
 .user-chip-name { overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
 .user-chip button { flex:0 0 auto; padding:6px 12px; border-radius:999px; background:#ffd24a; color:#12203d; font-weight:800; font-size:.8rem; }
 .user-chip button:hover { background:#ffdc6e; }
+.tip-card { display:flex; align-items:center; gap:20px; padding:24px 30px; border:1px solid #f3dc8d; border-radius:24px; background:linear-gradient(120deg,#fffaf0,#fff4cf); box-shadow:0 18px 50px rgba(29,52,91,.06); }
+.tip-icon { display:grid; place-items:center; width:54px; height:54px; flex:0 0 auto; border-radius:16px; background:#ffd24a; color:#12203d; }
+.tip-icon svg { width:26px; height:26px; }
+.tip-copy { flex:1 1 auto; min-width:0; }
+.tip-copy h2 { margin:0; font-size:1.2rem; letter-spacing:-.02em; color:#12203d; }
+.tip-copy p:last-child { margin:4px 0 0; color:#667085; font-size:.9rem; }
+.tip-button { flex:0 0 auto; }
+.tip-number { display:flex; align-items:center; justify-content:space-between; gap:12px; padding:14px 16px; border:1px solid #e6ebf3; border-radius:14px; background:#fafcff; }
+.tip-number span { display:block; font-size:.72rem; color:#7a8498; }
+.tip-number strong { font-size:1.25rem; letter-spacing:.02em; color:#12203d; }
+.tip-steps { display:grid; gap:6px; margin:0; padding-left:20px; color:#475467; font-size:.88rem; list-style:decimal; }
+.tip-thanks { display:flex; align-items:center; gap:8px; margin:0; padding:12px 14px; border-radius:12px; background:#fff4cf; color:#7a4b00; font-weight:700; font-size:.9rem; }
+.tip-thanks svg { width:18px; flex:0 0 auto; color:#e5484d; fill:#e5484d; }
 .search-box { display:flex; align-items:center; width:min(100%,360px); border:1px solid #d5dce8; border-radius:12px; padding-left:12px; color:#98a2b3; background:#fff; }
 .search-box svg { width:18px; flex:0 0 auto; }.search-box input{border:0;box-shadow:none;height:44px;font-size:.9rem}
 .filter-row { display:flex; gap:6px; overflow-x:auto; padding:0 30px 20px; border-bottom:1px solid #e7ebf1; scrollbar-width:none; }.filter-row::-webkit-scrollbar{display:none}
@@ -66,3 +79,4 @@ h1 span { color:#ffd24a; }
 @media(max-width:860px){.stats-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.workspace-top{align-items:stretch;flex-direction:column}.workspace-actions{flex:none;align-items:stretch}.workspace-top h2{padding-right:56px}.workspace-actions .add-button{position:absolute;top:24px;right:30px;width:44px;padding:0!important;font-size:0!important}.search-box{width:100%}}
 @media(max-width:600px){.hero-shell nav{padding-top:15px}.brand-kicker{display:none}.hero-shell .add-button{width:44px;padding:0!important;font-size:0!important}.hero-shell .add-button svg{width:19px}.workspace-actions .add-button{top:19px;right:18px}.user-chip{max-width:62vw}.hero-copy{line-height:1.55}.import-bar{grid-template-columns:auto minmax(0,1fr);padding:7px 8px 7px 13px}.import-bar button{grid-column:1/-1;width:100%}.stats-grid{gap:10px}.stat-card{min-height:96px;gap:11px;padding:15px;border-radius:16px}.stat-icon{width:39px;height:39px;border-radius:12px}.stat-card strong{font-size:1.45rem}.workspace-panel{border-radius:20px}.workspace-top{padding:23px 18px 16px}.filter-row{padding:0 18px 16px}.notice{margin:14px 18px 0}.applications-list{padding:5px 10px 12px}.application-card{grid-template-columns:44px minmax(0,1fr);gap:12px;padding:16px 13px}.company-avatar{width:44px;height:44px;border-radius:13px}.application-title-row{flex-direction:column;gap:10px}.card-actions{position:absolute;right:8px;top:9px}.detail-button{height:30px!important;padding:0 9px!important;font-size:.7rem!important}.application-main{padding-right:72px}.field-grid{grid-template-columns:1fr}.detail-body{padding-inline:18px}.detail-header{padding-inline:18px!important}.detail-footer{padding-inline:18px!important}}
 @media(prefers-reduced-motion:reduce){*{scroll-behavior:auto!important;transition:none!important}}
+@media(max-width:600px){.tip-card{flex-wrap:wrap;gap:14px;padding:20px 18px;border-radius:20px}.tip-icon{width:46px;height:46px;border-radius:14px}.tip-copy{flex-basis:calc(100% - 60px)}.tip-card .tip-button{width:100%;font-size:.95rem!important;padding:0 20px!important}}

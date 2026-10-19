@@ -11,6 +11,7 @@ import { NativeSelect, NativeSelectOption } from "@/components/ui/native-select"
 import { Textarea } from "@/components/ui/textarea";
 import { Sheet, SheetContent, SheetDescription, SheetFooter, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { authClient } from "@/lib/auth-client";
+import { TipCard } from "@/components/tip-card";
 
 const statuses = ["Tersimpan", "Dilamar", "Wawancara", "Penawaran", "Selesai"] as const;
 type Status = (typeof statuses)[number];
@@ -287,6 +288,8 @@ export default function Home() {
             {!loading && visibleItems.length === 0 && <div className="empty-state"><div><BriefcaseBusiness /></div><h3>{search || filter !== "Semua" ? "Belum ada yang cocok" : "Mulai jejak pertamamu"}</h3><p>{search || filter !== "Semua" ? "Coba ubah kata pencarian atau filter status." : "Tambahkan lowongan pertama agar semua proses tetap terpantau."}</p>{!search && filter === "Semua" && <Button onClick={openCreate}><Plus /> Tambah lamaran</Button>}</div>}
           </div>
         </div>
+
+        <TipCard />
       </section>
 
       <Dialog open={dialogOpen} onOpenChange={setDialogOpen}><DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-2xl"><DialogHeader><DialogTitle>{editing ? "Edit lamaran" : "Tambah lamaran baru"}</DialogTitle><DialogDescription>Simpan informasi penting agar langkah berikutnya selalu jelas.</DialogDescription></DialogHeader>
