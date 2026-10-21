@@ -57,7 +57,7 @@ h1 span { color:#ffd24a; }
 .tip-thanks { display:flex; align-items:center; gap:8px; margin:0; padding:12px 14px; border-radius:12px; background:#fff4cf; color:#7a4b00; font-weight:700; font-size:.9rem; }
 .tip-thanks svg { width:18px; flex:0 0 auto; color:#e5484d; fill:#e5484d; }
 .search-box { display:flex; align-items:center; width:min(100%,360px); border:1px solid #d5dce8; border-radius:12px; padding-left:12px; color:#98a2b3; background:#fff; }
-.search-box svg { width:18px; flex:0 0 auto; }.search-box input{border:0;box-shadow:none;height:44px;font-size:.9rem}
+.search-box svg { width:18px; flex:0 0 auto; }.search-box input{border:0;box-shadow:none;background:transparent!important;height:44px;font-size:.9rem}
 .filter-row { display:flex; gap:6px; overflow-x:auto; padding:0 30px 20px; border-bottom:1px solid #e7ebf1; scrollbar-width:none; }.filter-row::-webkit-scrollbar{display:none}
 .filter-row button { display:flex; align-items:center; gap:7px; flex:0 0 auto; min-height:37px; padding:7px 12px; border:0; border-radius:10px; color:#667085; background:transparent; font-size:.82rem; font-weight:700; cursor:pointer; }
 .filter-row button:hover{background:#f4f7fb}.filter-row button.active{color:#155eef;background:#edf3ff}.filter-row span{display:grid;place-items:center;min-width:20px;height:20px;border-radius:20px;padding:0 5px;background:#e9edf3;color:#667085;font-size:.68rem}.filter-row button.active span{background:#155eef;color:#fff}
