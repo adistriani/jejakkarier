@@ -71,8 +71,7 @@ export default function Home() {
   const [updatingId, setUpdatingId] = useState<number | null>(null);
   const [selectedApplication, setSelectedApplication] = useState<Application | null>(null);
   const [authOpen, setAuthOpen] = useState(false);
-  const [authMode, setAuthMode] = useState<"sign-in" | "sign-up" | "forgot">("sign-in");
-  const [resetSent, setResetSent] = useState(false);
+  const [authMode, setAuthMode] = useState<"sign-in" | "sign-up">("sign-in");
   const [authName, setAuthName] = useState("");
   const [authEmail, setAuthEmail] = useState("");
   const [authPassword, setAuthPassword] = useState("");
@@ -99,13 +98,6 @@ export default function Home() {
       setLoading(false);
     }
   }
-
-  useEffect(() => {
-    const params = new URLSearchParams(window.location.search);
-    if (params.get("masuk") !== "1") return;
-    window.history.replaceState(null, "", window.location.pathname);
-    if (!isSignedIn) openAuth();
-  }, [sessionPending]);
 
   useEffect(() => {
     if (sessionPending) return;
@@ -165,7 +157,7 @@ export default function Home() {
     thisWeek: items.filter((item) => isWithinLastWeek(item.appliedDate)).length,
   }), [items]);
 
-  function openAuth(mode: "sign-in" | "sign-up" | "forgot" = "sign-in") { setAuthMode(mode); setAuthError(""); setResetSent(false); setAuthOpen(true); }
+  function openAuth(mode: "sign-in" | "sign-up" = "sign-in") { setAuthMode(mode); setAuthError(""); setAuthOpen(true); }
   function openCreate() { if (!isSignedIn) return openAuth(); setEditing(null); setForm({ ...emptyForm, appliedDate: todayDate() }); setDialogOpen(true); }
   function openEdit(item: Application) {
     setEditing(item);
@@ -235,12 +227,6 @@ export default function Home() {
     event.preventDefault();
     setAuthSaving(true); setAuthError("");
     try {
-      if (authMode === "forgot") {
-        const result = await authClient.requestPasswordReset({ email: authEmail.trim(), redirectTo: "/reset-password" });
-        if (result.error) throw new Error(result.error.message || "Tautan atur ulang belum dapat dikirim.");
-        setResetSent(true);
-        return;
-      }
       const result = authMode === "sign-up"
         ? await authClient.signUp.email({ name: authName.trim(), email: authEmail.trim(), password: authPassword })
         : await authClient.signIn.email({ email: authEmail.trim(), password: authPassword });
@@ -324,8 +310,8 @@ export default function Home() {
         </div><div><Label htmlFor="url">Tautan lowongan</Label><Input id="url" type="url" value={form.jobUrl} onChange={(e) => setForm({ ...form, jobUrl: e.target.value })} placeholder="https://..." /></div><div><Label htmlFor="notes">Catatan</Label><Textarea id="notes" value={form.notes} onChange={(e) => setForm({ ...form, notes: e.target.value })} placeholder="Kontak recruiter, persiapan wawancara, atau hal penting lainnya..." rows={4} /></div><DialogFooter><Button type="button" variant="outline" onClick={() => setDialogOpen(false)}>Batal</Button><Button type="submit" disabled={saving}>{saving ? "Menyimpan..." : editing ? "Simpan perubahan" : "Tambah lamaran"}</Button></DialogFooter></form>
       </DialogContent></Dialog>
 
-      <Dialog open={authOpen} onOpenChange={setAuthOpen}><DialogContent className="sm:max-w-md"><DialogHeader><div className="mb-2 flex size-11 items-center justify-center rounded-2xl bg-[#fff0b8] text-[#0d3989]"><UserRound /></div><DialogTitle>{authMode === "sign-up" ? "Buat akun Jejak Karier" : authMode === "forgot" ? "Lupa kata sandi?" : "Masuk ke Jejak Karier"}</DialogTitle><DialogDescription>{authMode === "sign-up" ? "Simpan lamaranmu dengan aman dan akses dari perangkat mana pun." : authMode === "forgot" ? "Masukkan email akunmu. Kami akan mengirim tautan untuk membuat kata sandi baru." : "Masuk untuk melihat dan memperbarui lamaranmu dari perangkat mana pun."}</DialogDescription></DialogHeader>
-        {authMode === "forgot" && resetSent ? <div className="application-form"><p className="reset-sent"><Check /><span>Jika email <b>{authEmail.trim()}</b> terdaftar, tautan atur ulang kata sandi sudah dikirim. Cek kotak masuk atau folder spam, tautannya berlaku 1 jam.</span></p><DialogFooter><Button type="button" onClick={() => openAuth("sign-in")}>Kembali ke halaman masuk</Button></DialogFooter></div> : <form onSubmit={submitAuth} className="application-form">{authMode === "sign-up" && <div><Label htmlFor="auth-name">Nama</Label><Input id="auth-name" required value={authName} onChange={(event) => setAuthName(event.target.value)} placeholder="Namamu" /></div>}<div><Label htmlFor="auth-email">Email</Label><Input id="auth-email" type="email" required value={authEmail} onChange={(event) => setAuthEmail(event.target.value)} placeholder="nama@email.com" /></div>{authMode !== "forgot" && <div><Label htmlFor="auth-password">Kata sandi</Label><Input id="auth-password" type="password" required minLength={8} value={authPassword} onChange={(event) => setAuthPassword(event.target.value)} placeholder="Minimal 8 karakter" /></div>}{authError && <p className="import-error"><CircleAlert /> {authError}</p>}<DialogFooter className="gap-3 sm:justify-between"><Button type="button" variant="ghost" onClick={() => openAuth(authMode === "sign-in" ? "sign-up" : "sign-in")}>{authMode === "sign-in" ? "Buat akun" : authMode === "forgot" ? "Kembali ke halaman masuk" : "Sudah punya akun? Masuk"}</Button><Button type="submit" disabled={authSaving}>{authSaving ? "Memproses..." : authMode === "sign-up" ? "Daftar" : authMode === "forgot" ? "Kirim tautan" : "Masuk"}</Button></DialogFooter></form>}
+      <Dialog open={authOpen} onOpenChange={setAuthOpen}><DialogContent className="sm:max-w-md"><DialogHeader><div className="mb-2 flex size-11 items-center justify-center rounded-2xl bg-[#fff0b8] text-[#0d3989]"><UserRound /></div><DialogTitle>{authMode === "sign-up" ? "Buat akun Jejak Karier" : "Masuk ke Jejak Karier"}</DialogTitle><DialogDescription>{authMode === "sign-up" ? "Simpan lamaranmu dengan aman dan akses dari perangkat mana pun." : "Masuk untuk melihat dan memperbarui lamaranmu dari perangkat mana pun."}</DialogDescription></DialogHeader>
+        <form onSubmit={submitAuth} className="application-form">{authMode === "sign-up" && <div><Label htmlFor="auth-name">Nama</Label><Input id="auth-name" required value={authName} onChange={(event) => setAuthName(event.target.value)} placeholder="Namamu" /></div>}<div><Label htmlFor="auth-email">Email</Label><Input id="auth-email" type="email" required value={authEmail} onChange={(event) => setAuthEmail(event.target.value)} placeholder="nama@email.com" /></div><div><Label htmlFor="auth-password">Kata sandi</Label><Input id="auth-password" type="password" required minLength={8} value={authPassword} onChange={(event) => setAuthPassword(event.target.value)} placeholder="Minimal 8 karakter" /></div>{authError && <p className="import-error"><CircleAlert /> {authError}</p>}<DialogFooter className="gap-3 sm:justify-between"><Button type="button" variant="ghost" onClick={() => openAuth(authMode === "sign-in" ? "sign-up" : "sign-in")}>{authMode === "sign-in" ? "Buat akun" : "Sudah punya akun? Masuk"}</Button><Button type="submit" disabled={authSaving}>{authSaving ? "Memproses..." : authMode === "sign-up" ? "Daftar" : "Masuk"}</Button></DialogFooter></form>
       </DialogContent></Dialog>
 
       <Sheet open={Boolean(selectedApplication)} onOpenChange={(open) => !open && setSelectedApplication(null)}>
