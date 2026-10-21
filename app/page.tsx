@@ -45,11 +45,11 @@ function dateLabel(date: string) {
   return new Intl.DateTimeFormat("id-ID", { day: "numeric", month: "short", year: "numeric" }).format(new Date(`${date}T12:00:00`));
 }
 
-function isDueSoon(date: string) {
+function isWithinLastWeek(date: string) {
   if (!date) return false;
   const today = new Date(); today.setHours(0, 0, 0, 0);
-  const days = Math.ceil((new Date(`${date}T00:00:00`).getTime() - today.getTime()) / 86400000);
-  return days >= 0 && days <= 3;
+  const days = Math.round((today.getTime() - new Date(`${date}T00:00:00`).getTime()) / 86400000);
+  return days >= 0 && days < 7;
 }
 
 export default function Home() {
@@ -162,7 +162,7 @@ export default function Home() {
     active: items.filter((item) => !["Selesai", "Penawaran"].includes(item.status)).length,
     interview: items.filter((item) => item.status === "Wawancara").length,
     offer: items.filter((item) => item.status === "Penawaran").length,
-    due: items.filter((item) => isDueSoon(item.nextStepDate)).length,
+    thisWeek: items.filter((item) => isWithinLastWeek(item.appliedDate)).length,
   }), [items]);
 
   function openAuth(mode: "sign-in" | "sign-up" | "forgot" = "sign-in") { setAuthMode(mode); setAuthError(""); setResetSent(false); setAuthOpen(true); }
@@ -282,7 +282,7 @@ export default function Home() {
           <article className="stat-card"><div className="stat-icon blue"><BriefcaseBusiness /></div><div><p>Proses aktif</p><strong>{stats.active}</strong></div></article>
           <article className="stat-card"><div className="stat-icon purple"><CalendarDays /></div><div><p>Wawancara</p><strong>{stats.interview}</strong></div></article>
           <article className="stat-card"><div className="stat-icon green"><Check /></div><div><p>Penawaran</p><strong>{stats.offer}</strong></div></article>
-          <article className="stat-card"><div className="stat-icon orange"><Clock3 /></div><div><p>Perlu aksi</p><strong>{stats.due}</strong></div></article>
+          <article className="stat-card"><div className="stat-icon orange"><Clock3 /></div><div><p>Minggu ini</p><strong>{stats.thisWeek}</strong></div></article>
         </div>
 
         <div className="workspace-panel mt-6">
