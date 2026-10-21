@@ -23,9 +23,15 @@ type Application = {
 };
 type FormState = Omit<Application, "id" | "createdAt" | "updatedAt">;
 
+// Tanggal lokal (bukan UTC) agar sesuai hari ini di zona waktu pengguna.
+function todayDate() {
+  const now = new Date();
+  return new Date(now.getTime() - now.getTimezoneOffset() * 60000).toISOString().slice(0, 10);
+}
+
 const emptyForm: FormState = {
   company: "", role: "", status: "Dilamar", location: "", workMode: "Remote",
-  jobUrl: "", salary: "", appliedDate: new Date().toISOString().slice(0, 10),
+  jobUrl: "", salary: "", appliedDate: todayDate(),
   nextStepDate: "", notes: "",
 };
 
@@ -65,7 +71,8 @@ export default function Home() {
   const [updatingId, setUpdatingId] = useState<number | null>(null);
   const [selectedApplication, setSelectedApplication] = useState<Application | null>(null);
   const [authOpen, setAuthOpen] = useState(false);
-  const [authMode, setAuthMode] = useState<"sign-in" | "sign-up">("sign-in");
+  const [authMode, setAuthMode] = useState<"sign-in" | "sign-up" | "forgot">("sign-in");
+  const [resetSent, setResetSent] = useState(false);
   const [authName, setAuthName] = useState("");
   const [authEmail, setAuthEmail] = useState("");
   const [authPassword, setAuthPassword] = useState("");
@@ -92,6 +99,13 @@ export default function Home() {
       setLoading(false);
     }
   }
+
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    if (params.get("masuk") !== "1") return;
+    window.history.replaceState(null, "", window.location.pathname);
+    if (!isSignedIn) openAuth();
+  }, [sessionPending]);
 
   useEffect(() => {
     if (sessionPending) return;
@@ -126,7 +140,7 @@ export default function Home() {
         execute: async (input: unknown) => {
           const value = input as Partial<FormState>;
           if (!value.company?.trim() || !value.role?.trim()) throw new Error("Perusahaan dan posisi wajib diisi.");
-          const payload = { ...emptyForm, ...value, company: value.company.trim(), role: value.role.trim() };
+          const payload = { ...emptyForm, appliedDate: todayDate(), ...value, company: value.company.trim(), role: value.role.trim() };
           const response = await fetch("/api/applications", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload) });
           const data = await response.json() as { application?: Application; error?: string };
           if (!response.ok || !data.application) throw new Error(data.error || "Masuk ke akunmu terlebih dahulu untuk menyimpan lamaran.");
@@ -151,8 +165,8 @@ export default function Home() {
     due: items.filter((item) => isDueSoon(item.nextStepDate)).length,
   }), [items]);
 
-  function openAuth(mode: "sign-in" | "sign-up" = "sign-in") { setAuthMode(mode); setAuthError(""); setAuthOpen(true); }
-  function openCreate() { if (!isSignedIn) return openAuth(); setEditing(null); setForm({ ...emptyForm, appliedDate: new Date().toISOString().slice(0, 10) }); setDialogOpen(true); }
+  function openAuth(mode: "sign-in" | "sign-up" | "forgot" = "sign-in") { setAuthMode(mode); setAuthError(""); setResetSent(false); setAuthOpen(true); }
+  function openCreate() { if (!isSignedIn) return openAuth(); setEditing(null); setForm({ ...emptyForm, appliedDate: todayDate() }); setDialogOpen(true); }
   function openEdit(item: Application) {
     setEditing(item);
     setForm({ company: item.company, role: item.role, status: item.status, location: item.location, workMode: item.workMode, jobUrl: item.jobUrl, salary: item.salary, appliedDate: item.appliedDate, nextStepDate: item.nextStepDate, notes: item.notes });
@@ -173,7 +187,7 @@ export default function Home() {
       const data = await response.json() as { job?: Partial<FormState>; error?: string };
       if (!response.ok || !data.job) throw new Error(data.error || "Data lowongan belum bisa dibaca.");
       setEditing(null);
-      setForm({ ...emptyForm, status: "Tersimpan", appliedDate: "", ...data.job, jobUrl: importUrl.trim() });
+      setForm({ ...emptyForm, status: "Tersimpan", ...data.job, appliedDate: todayDate(), jobUrl: importUrl.trim() });
       setDialogOpen(true);
     } catch (cause) {
       setImportError(cause instanceof Error ? cause.message : "Data lowongan belum bisa dibaca.");
@@ -221,6 +235,12 @@ export default function Home() {
     event.preventDefault();
     setAuthSaving(true); setAuthError("");
     try {
+      if (authMode === "forgot") {
+        const result = await authClient.requestPasswordReset({ email: authEmail.trim(), redirectTo: "/reset-password" });
+        if (result.error) throw new Error(result.error.message || "Tautan atur ulang belum dapat dikirim.");
+        setResetSent(true);
+        return;
+      }
       const result = authMode === "sign-up"
         ? await authClient.signUp.email({ name: authName.trim(), email: authEmail.trim(), password: authPassword })
         : await authClient.signIn.email({ email: authEmail.trim(), password: authPassword });
@@ -301,12 +321,11 @@ export default function Home() {
           <div><Label htmlFor="location">Lokasi</Label><Input id="location" value={form.location} onChange={(e) => setForm({ ...form, location: e.target.value })} placeholder="Kota atau negara" /></div>
           <div><Label htmlFor="salary">Rentang gaji</Label><Input id="salary" value={form.salary} onChange={(e) => setForm({ ...form, salary: e.target.value })} placeholder="Contoh: Rp15–20 juta" /></div>
           <div><Label htmlFor="applied">Tanggal dilamar</Label><Input id="applied" type="date" value={form.appliedDate} onChange={(e) => setForm({ ...form, appliedDate: e.target.value })} /></div>
-          <div><Label htmlFor="next">Langkah berikutnya</Label><Input id="next" type="date" value={form.nextStepDate} onChange={(e) => setForm({ ...form, nextStepDate: e.target.value })} /></div>
         </div><div><Label htmlFor="url">Tautan lowongan</Label><Input id="url" type="url" value={form.jobUrl} onChange={(e) => setForm({ ...form, jobUrl: e.target.value })} placeholder="https://..." /></div><div><Label htmlFor="notes">Catatan</Label><Textarea id="notes" value={form.notes} onChange={(e) => setForm({ ...form, notes: e.target.value })} placeholder="Kontak recruiter, persiapan wawancara, atau hal penting lainnya..." rows={4} /></div><DialogFooter><Button type="button" variant="outline" onClick={() => setDialogOpen(false)}>Batal</Button><Button type="submit" disabled={saving}>{saving ? "Menyimpan..." : editing ? "Simpan perubahan" : "Tambah lamaran"}</Button></DialogFooter></form>
       </DialogContent></Dialog>
 
-      <Dialog open={authOpen} onOpenChange={setAuthOpen}><DialogContent className="sm:max-w-md"><DialogHeader><div className="mb-2 flex size-11 items-center justify-center rounded-2xl bg-[#fff0b8] text-[#0d3989]"><UserRound /></div><DialogTitle>{authMode === "sign-up" ? "Buat akun Jejak Karier" : "Masuk ke Jejak Karier"}</DialogTitle><DialogDescription>{authMode === "sign-up" ? "Simpan lamaranmu dengan aman dan akses dari perangkat mana pun." : "Masuk untuk melihat dan memperbarui lamaranmu dari perangkat mana pun."}</DialogDescription></DialogHeader>
-        <form onSubmit={submitAuth} className="application-form">{authMode === "sign-up" && <div><Label htmlFor="auth-name">Nama</Label><Input id="auth-name" required value={authName} onChange={(event) => setAuthName(event.target.value)} placeholder="Namamu" /></div>}<div><Label htmlFor="auth-email">Email</Label><Input id="auth-email" type="email" required value={authEmail} onChange={(event) => setAuthEmail(event.target.value)} placeholder="nama@email.com" /></div><div><Label htmlFor="auth-password">Kata sandi</Label><Input id="auth-password" type="password" required minLength={8} value={authPassword} onChange={(event) => setAuthPassword(event.target.value)} placeholder="Minimal 8 karakter" /></div>{authError && <p className="import-error"><CircleAlert /> {authError}</p>}<DialogFooter className="gap-3 sm:justify-between"><Button type="button" variant="ghost" onClick={() => { setAuthMode(authMode === "sign-in" ? "sign-up" : "sign-in"); setAuthError(""); }}>{authMode === "sign-in" ? "Buat akun" : "Sudah punya akun? Masuk"}</Button><Button type="submit" disabled={authSaving}>{authSaving ? "Memproses..." : authMode === "sign-up" ? "Daftar" : "Masuk"}</Button></DialogFooter></form>
+      <Dialog open={authOpen} onOpenChange={setAuthOpen}><DialogContent className="sm:max-w-md"><DialogHeader><div className="mb-2 flex size-11 items-center justify-center rounded-2xl bg-[#fff0b8] text-[#0d3989]"><UserRound /></div><DialogTitle>{authMode === "sign-up" ? "Buat akun Jejak Karier" : authMode === "forgot" ? "Lupa kata sandi?" : "Masuk ke Jejak Karier"}</DialogTitle><DialogDescription>{authMode === "sign-up" ? "Simpan lamaranmu dengan aman dan akses dari perangkat mana pun." : authMode === "forgot" ? "Masukkan email akunmu. Kami akan mengirim tautan untuk membuat kata sandi baru." : "Masuk untuk melihat dan memperbarui lamaranmu dari perangkat mana pun."}</DialogDescription></DialogHeader>
+        {authMode === "forgot" && resetSent ? <div className="application-form"><p className="reset-sent"><Check /><span>Jika email <b>{authEmail.trim()}</b> terdaftar, tautan atur ulang kata sandi sudah dikirim. Cek kotak masuk atau folder spam, tautannya berlaku 1 jam.</span></p><DialogFooter><Button type="button" onClick={() => openAuth("sign-in")}>Kembali ke halaman masuk</Button></DialogFooter></div> : <form onSubmit={submitAuth} className="application-form">{authMode === "sign-up" && <div><Label htmlFor="auth-name">Nama</Label><Input id="auth-name" required value={authName} onChange={(event) => setAuthName(event.target.value)} placeholder="Namamu" /></div>}<div><Label htmlFor="auth-email">Email</Label><Input id="auth-email" type="email" required value={authEmail} onChange={(event) => setAuthEmail(event.target.value)} placeholder="nama@email.com" /></div>{authMode !== "forgot" && <div><div className="flex items-center justify-between"><Label htmlFor="auth-password">Kata sandi</Label>{authMode === "sign-in" && <button type="button" className="forgot-link" onClick={() => openAuth("forgot")}>Lupa kata sandi?</button>}</div><Input id="auth-password" type="password" required minLength={8} value={authPassword} onChange={(event) => setAuthPassword(event.target.value)} placeholder="Minimal 8 karakter" /></div>}{authError && <p className="import-error"><CircleAlert /> {authError}</p>}<DialogFooter className="gap-3 sm:justify-between"><Button type="button" variant="ghost" onClick={() => openAuth(authMode === "sign-in" ? "sign-up" : "sign-in")}>{authMode === "sign-in" ? "Buat akun" : authMode === "forgot" ? "Kembali ke halaman masuk" : "Sudah punya akun? Masuk"}</Button><Button type="submit" disabled={authSaving}>{authSaving ? "Memproses..." : authMode === "sign-up" ? "Daftar" : authMode === "forgot" ? "Kirim tautan" : "Masuk"}</Button></DialogFooter></form>}
       </DialogContent></Dialog>
 
       <Sheet open={Boolean(selectedApplication)} onOpenChange={(open) => !open && setSelectedApplication(null)}>
@@ -318,7 +337,7 @@ export default function Home() {
               <span className={`status-pill ${statusStyle[selectedApplication.status]}`}>{selectedApplication.status}</span>
             </SheetHeader>
             <div className="detail-body">
-              <section className="detail-section"><p className="detail-label">RINGKASAN</p><div className="detail-grid"><div><span>Lokasi</span><strong>{selectedApplication.location || "Belum diisi"}</strong></div><div><span>Cara kerja</span><strong>{selectedApplication.workMode}</strong></div><div><span>Tanggal dilamar</span><strong>{dateLabel(selectedApplication.appliedDate)}</strong></div><div><span>Langkah berikutnya</span><strong>{dateLabel(selectedApplication.nextStepDate)}</strong></div>{selectedApplication.salary && <div><span>Rentang gaji</span><strong>{selectedApplication.salary}</strong></div>}</div></section>
+              <section className="detail-section"><p className="detail-label">RINGKASAN</p><div className="detail-grid"><div><span>Lokasi</span><strong>{selectedApplication.location || "Belum diisi"}</strong></div><div><span>Cara kerja</span><strong>{selectedApplication.workMode}</strong></div><div><span>Tanggal dilamar</span><strong>{dateLabel(selectedApplication.appliedDate)}</strong></div>{selectedApplication.salary && <div><span>Rentang gaji</span><strong>{selectedApplication.salary}</strong></div>}</div></section>
               {selectedApplication.notes && <section className="detail-section"><p className="detail-label">CATATAN</p><p className="detail-notes">{selectedApplication.notes}</p></section>}
               {selectedApplication.jobUrl && <section className="detail-section"><p className="detail-label">LOWONGAN ASLI</p><a className="detail-link" href={selectedApplication.jobUrl} target="_blank" rel="noreferrer"><span>{selectedApplication.jobUrl}</span><ArrowUpRight /></a></section>}
               <section className="detail-section"><p className="detail-label">PERBARUI STATUS</p><NativeSelect className="w-full" value={selectedApplication.status} disabled={updatingId === selectedApplication.id} onChange={(event) => void updateStatus(selectedApplication, event.target.value as Status)}>{statuses.map((status) => <NativeSelectOption key={status} value={status}>{status}</NativeSelectOption>)}</NativeSelect></section>
