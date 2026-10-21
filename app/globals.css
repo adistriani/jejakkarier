@@ -56,6 +56,8 @@ h1 span { color:#ffd24a; }
 .tip-steps { display:grid; gap:6px; margin:0; padding-left:20px; color:#475467; font-size:.88rem; list-style:decimal; }
 .tip-thanks { display:flex; align-items:center; gap:8px; margin:0; padding:12px 14px; border-radius:12px; background:#fff4cf; color:#7a4b00; font-weight:700; font-size:.9rem; }
 .tip-thanks svg { width:18px; flex:0 0 auto; color:#e5484d; fill:#e5484d; }
+.form-error { display:flex; align-items:flex-start; gap:8px; margin:0; padding:11px 13px; border:1px solid #fecdca; border-radius:12px; background:#fef3f2; color:#b42318; font-size:.86rem; font-weight:600; line-height:1.45; }
+.form-error svg { width:17px; flex:0 0 auto; margin-top:1px; }
 .search-box { display:flex; align-items:center; width:min(100%,360px); border:1px solid #d5dce8; border-radius:12px; padding-left:12px; color:#98a2b3; background:#fff; }
 .search-box svg { width:18px; flex:0 0 auto; }.search-box input{border:0;box-shadow:none;background:transparent!important;height:44px;font-size:.9rem}
 .filter-row { display:flex; gap:6px; overflow-x:auto; padding:0 30px 20px; border-bottom:1px solid #e7ebf1; scrollbar-width:none; }.filter-row::-webkit-scrollbar{display:none}

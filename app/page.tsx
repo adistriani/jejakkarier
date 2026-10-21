@@ -12,6 +12,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Sheet, SheetContent, SheetDescription, SheetFooter, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { authClient } from "@/lib/auth-client";
 import { TipCard } from "@/components/tip-card";
+import { findDuplicateJob, jobUrlKey } from "@/lib/job-url";
 
 const statuses = ["Tersimpan", "Dilamar", "Wawancara", "Penawaran", "Selesai"] as const;
 type Status = (typeof statuses)[number];
@@ -45,6 +46,10 @@ function dateLabel(date: string) {
   return new Intl.DateTimeFormat("id-ID", { day: "numeric", month: "short", year: "numeric" }).format(new Date(`${date}T12:00:00`));
 }
 
+function duplicateMessage(item: { company: string; role: string }) {
+  return `Lowongan ini sudah ditambahkan sebelumnya (${item.role} di ${item.company}).`;
+}
+
 function isWithinLastWeek(date: string) {
   if (!date) return false;
   const today = new Date(); today.setHours(0, 0, 0, 0);
@@ -65,6 +70,7 @@ export default function Home() {
   const [deleteTarget, setDeleteTarget] = useState<Application | null>(null);
   const [form, setForm] = useState<FormState>(emptyForm);
   const [saving, setSaving] = useState(false);
+  const [formError, setFormError] = useState("");
   const [importUrl, setImportUrl] = useState("");
   const [importing, setImporting] = useState(false);
   const [importError, setImportError] = useState("");
@@ -158,11 +164,11 @@ export default function Home() {
   }), [items]);
 
   function openAuth(mode: "sign-in" | "sign-up" = "sign-in") { setAuthMode(mode); setAuthError(""); setAuthOpen(true); }
-  function openCreate() { if (!isSignedIn) return openAuth(); setEditing(null); setForm({ ...emptyForm, appliedDate: todayDate() }); setDialogOpen(true); }
+  function openCreate() { if (!isSignedIn) return openAuth(); setEditing(null); setForm({ ...emptyForm, appliedDate: todayDate() }); setFormError(""); setDialogOpen(true); }
   function openEdit(item: Application) {
     setEditing(item);
     setForm({ company: item.company, role: item.role, status: item.status, location: item.location, workMode: item.workMode, jobUrl: item.jobUrl, salary: item.salary, appliedDate: item.appliedDate, nextStepDate: item.nextStepDate, notes: item.notes });
-    setDialogOpen(true);
+    setFormError(""); setDialogOpen(true);
   }
   function openDetail(item: Application) { setSelectedApplication(item); }
 
@@ -170,6 +176,8 @@ export default function Home() {
     event.preventDefault();
     if (!importUrl.trim()) return;
     if (!isSignedIn) return openAuth();
+    const duplicate = findDuplicateJob(itemsRef.current, importUrl);
+    if (duplicate) { setImportError(duplicateMessage(duplicate)); return; }
     setImporting(true); setImportError("");
     try {
       const response = await fetch("/api/import-job", {
@@ -180,6 +188,7 @@ export default function Home() {
       if (!response.ok || !data.job) throw new Error(data.error || "Data lowongan belum bisa dibaca.");
       setEditing(null);
       setForm({ ...emptyForm, status: "Tersimpan", ...data.job, appliedDate: todayDate(), jobUrl: importUrl.trim() });
+      setFormError("");
       setDialogOpen(true);
     } catch (cause) {
       setImportError(cause instanceof Error ? cause.message : "Data lowongan belum bisa dibaca.");
@@ -187,7 +196,11 @@ export default function Home() {
   }
 
   async function submit(event: FormEvent) {
-    event.preventDefault(); setSaving(true); setError("");
+    event.preventDefault();
+    const urlChanged = !editing || jobUrlKey(editing.jobUrl) !== jobUrlKey(form.jobUrl);
+    const duplicate = urlChanged ? findDuplicateJob(itemsRef.current, form.jobUrl, editing?.id) : undefined;
+    if (duplicate) { setFormError(duplicateMessage(duplicate)); return; }
+    setSaving(true); setFormError("");
     try {
       const response = await fetch(editing ? `/api/applications/${editing.id}` : "/api/applications", {
         method: editing ? "PATCH" : "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(form),
@@ -196,7 +209,7 @@ export default function Home() {
       if (!response.ok || !data.application) throw new Error(data.error || "Lamaran belum berhasil disimpan.");
       saveApplications(editing ? itemsRef.current.map((item) => item.id === editing.id ? data.application! : item) : [data.application, ...itemsRef.current]);
       setDialogOpen(false);
-    } catch (cause) { setError(cause instanceof Error ? cause.message : "Lamaran belum berhasil disimpan."); }
+    } catch (cause) { setFormError(cause instanceof Error ? cause.message : "Lamaran belum berhasil disimpan."); }
     finally { setSaving(false); }
   }
 
@@ -308,7 +321,7 @@ export default function Home() {
           <div><Label htmlFor="salary">Rentang gaji</Label><Input id="salary" value={form.salary} onChange={(e) => setForm({ ...form, salary: e.target.value })} placeholder="Contoh: Rp15–20 juta" /></div>
           <div><Label htmlFor="applied">Tanggal dilamar</Label><Input id="applied" type="date" value={form.appliedDate} onChange={(e) => setForm({ ...form, appliedDate: e.target.value })} /></div>
           <div><Label htmlFor="url">Tautan lowongan</Label><Input id="url" type="url" value={form.jobUrl} onChange={(e) => setForm({ ...form, jobUrl: e.target.value })} placeholder="https://..." /></div>
-        </div><div><Label htmlFor="notes">Catatan</Label><Textarea id="notes" value={form.notes} onChange={(e) => setForm({ ...form, notes: e.target.value })} placeholder="Kontak recruiter, persiapan wawancara, atau hal penting lainnya..." rows={4} /></div><DialogFooter><Button type="button" variant="outline" onClick={() => setDialogOpen(false)}>Batal</Button><Button type="submit" disabled={saving}>{saving ? "Menyimpan..." : editing ? "Simpan perubahan" : "Tambah lamaran"}</Button></DialogFooter></form>
+        </div><div><Label htmlFor="notes">Catatan</Label><Textarea id="notes" value={form.notes} onChange={(e) => setForm({ ...form, notes: e.target.value })} placeholder="Kontak recruiter, persiapan wawancara, atau hal penting lainnya..." rows={4} /></div>{formError && <p className="form-error"><CircleAlert /> {formError}</p>}<DialogFooter><Button type="button" variant="outline" onClick={() => setDialogOpen(false)}>Batal</Button><Button type="submit" disabled={saving}>{saving ? "Menyimpan..." : editing ? "Simpan perubahan" : "Tambah lamaran"}</Button></DialogFooter></form>
       </DialogContent></Dialog>
 
       <Dialog open={authOpen} onOpenChange={setAuthOpen}><DialogContent className="sm:max-w-md"><DialogHeader><div className="mb-2 flex size-11 items-center justify-center rounded-2xl bg-[#fff0b8] text-[#0d3989]"><UserRound /></div><DialogTitle>{authMode === "sign-up" ? "Buat akun Jejak Karier" : "Masuk ke Jejak Karier"}</DialogTitle><DialogDescription>{authMode === "sign-up" ? "Simpan lamaranmu dengan aman dan akses dari perangkat mana pun." : "Masuk untuk melihat dan memperbarui lamaranmu dari perangkat mana pun."}</DialogDescription></DialogHeader>
